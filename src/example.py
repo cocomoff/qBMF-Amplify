@@ -2,10 +2,10 @@ import numpy as np
 import argparse
 from API_KEY import AMPLIFY_KEY as TOKEN, PROXY_STR
 from amplify import FixstarsClient, VariableGenerator
-from amplify import einsum, sum, equal_to, less_equal, solve
+from amplify import einsum, solve
+from util import generate_binary_matrix
 
-
-def qbmf_formulation1(
+def qbmf_direct(
     A: np.ndarray,
     r: int = 2,
     proxy: bool = False,
@@ -14,18 +14,14 @@ def qbmf_formulation1(
     print(m, n)
     print(A)
     print()
-
-    lam = 2.1 * r * np.linalg.norm(A, ord="fro") ** 2
     print(f"Token: {TOKEN}")
     print(f"Rank: {r}")
-    print(f"Penalty: {lam:>.3f}")
 
     # Solve Formulation 0 via Fixstars Amplify
     # 変数
     gen = VariableGenerator()
-    U = gen.array("Binary", shape=(n, m))
-    V = gen.array("Binary", shape=(n, m))
-    W = gen.array("Binary", shape=(n, m, r))
+    U = gen.array("Binary", shape=(m, r))
+    V = gen.array("Binary", shape=(n, r))
 
     # 目的関数
     froA = np.linalg.norm(A, ord="fro") ** 2
@@ -67,6 +63,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-proxy', action="store_true")
     args = parser.parse_args()
-    A = np.array([[1, 1, 0], [1, 1, 1], [0, 0, 1]])
-    r = 2
-    qbmf_formulation1(A, r, proxy=args.proxy)
+    # A = np.array([[1, 1, 0], [1, 1, 1], [0, 0, 1]])
+    # r = 2
+    
+    m, n, r = 10, 8, 4
+    # Generate matrix
+    U, V = generate_binary_matrix(m, n, r=r)
+    A = U @ np.transpose(V)
+    density = np.count_nonzero(A)/(m*n)
+    print("A is {}-by-{} and has a density of {}.".format(m, n, density))
+    qbmf_direct(A, r, proxy=args.proxy)
