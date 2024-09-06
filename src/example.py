@@ -40,7 +40,6 @@ def qbmf_direct(
     ## 解を求める
     result = solve(model, client, num_solves=1)
     if len(result) > 0:
-        print(result.best)
         U = U.evaluate(result.best.values)
         V = V.evaluate(result.best.values)
         print("U=")
@@ -55,9 +54,9 @@ def qbmf_direct(
         print("|A - UV^\\top|=")
         print(A - U.dot(V.transpose()))
         print()
+        return U, V
 
-    return
-
+    return None, None
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

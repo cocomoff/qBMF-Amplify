@@ -2,7 +2,8 @@ import numpy as np
 import argparse
 from API_KEY import AMPLIFY_KEY as TOKEN, PROXY_STR
 from amplify import FixstarsClient, VariableGenerator
-from amplify import einsum, sum, equal_to, less_equal, solve
+from amplify import einsum, equal_to, solve
+from util import generate_binary_matrix
 
 
 def qbmf_formulation1(
@@ -23,17 +24,17 @@ def qbmf_formulation1(
     # Solve Formulation 0 via Fixstars Amplify
     # 変数
     gen = VariableGenerator()
-    U = gen.array("Binary", shape=(n, m))
-    V = gen.array("Binary", shape=(n, m))
-    W = gen.array("Binary", shape=(n, m, r))
+    U = gen.array("Binary", shape=(m, r))
+    V = gen.array("Binary", shape=(n, r))
+    W = gen.array("Binary", shape=(m, n, r))
 
     # 目的関数
     froA = np.linalg.norm(A, ord="fro") ** 2
     term2 = einsum("ij,ijk->", A, W)
     term3 = einsum("ijk,ijl->", W, W)
     cons = 0
-    for i in range(n):
-        for j in range(m):
+    for i in range(m):
+        for j in range(n):
             for k in range(r):
                 cons += lam * equal_to(W[i, j, k] - U[i, k] * V[j, k], 0)
     model = froA - 2 * term2 + term3 + cons
@@ -49,7 +50,6 @@ def qbmf_formulation1(
     ## 解を求める
     result = solve(model, client, num_solves=1)
     if len(result) > 0:
-        print(result.best)
         U = U.evaluate(result.best.values)
         V = V.evaluate(result.best.values)
         print("U=")
@@ -65,13 +65,21 @@ def qbmf_formulation1(
         print(A - U.dot(V.transpose()))
         print()
 
-    return
+        return U, V
+    return None, None
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-proxy', action="store_true")
     args = parser.parse_args()
-    A = np.array([[1, 1, 0], [1, 1, 1], [0, 0, 1]])
-    r = 2
+    # A = np.array([[1, 1, 0], [1, 1, 1], [0, 0, 1]])
+    # r = 2
+    
+    m, n, r = 10, 8, 4
+    # Generate matrix
+    U, V = generate_binary_matrix(m, n, r=r)
+    A = U @ np.transpose(V)
+    density = np.count_nonzero(A)/(m*n)
+    print("A is {}-by-{} and has a density of {}.".format(m, n, density))
     qbmf_formulation1(A, r, proxy=args.proxy)
