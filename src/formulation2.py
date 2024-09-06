@@ -6,7 +6,7 @@ from amplify import einsum, equal_to, solve
 from util import generate_binary_matrix
 
 
-def qbmf_formulation1(
+def qbmf_formulation2(
     A: np.ndarray,
     r: int = 2,
     num_solves: int = 1,
@@ -28,28 +28,24 @@ def qbmf_formulation1(
     gen = VariableGenerator()
     U = gen.array("Binary", shape=(m, r))
     V = gen.array("Binary", shape=(n, r))
-    W = gen.array("Binary", shape=(m, n, r))
+    Ut = gen.array("Binary", shape=(m, r, r))
+    Vt = gen.array("Binary", shape=(n, r, r))
 
     # 目的関数
     froA = np.linalg.norm(A, ord="fro") ** 2
-    term2 = einsum("ij,ijk->", A, W)
-    term3 = einsum("ijk,ijl->", W, W)
-    cons = 0
+    term2 = einsum("ij,ik,jk->", A, U, V)
+    term3 = einsum("ikl,jkl->", Ut, Vt)
+    cons1, cons2 = 0, 0
     for i in range(m):
-        for j in range(n):
-            for k in range(r):
-                # Amplify
-                cons += lam * equal_to(W[i, j, k] - U[i, k] * V[j, k], 0)
-                #
-                # Paper
-                # f(a, b, c) := bc - 2ba - 2ca + 3a and f(Wijk, uik, vjk)
-                # cons += lam * (
-                #     U[i, k] * V[j, k]
-                #     - 2 * U[i, k] * W[i, j, k]
-                #     - 2 * V[j, k] * W[i, j, k]
-                #     + 3 * W[i, j, k]
-                # )
-    model = froA - 2 * term2 + term3 + cons
+        for k in range(r):
+            for kp in range(r):
+                cons1 += lam * equal_to(Ut[i, k, kp] - U[i, k] * U[i, kp], 0)
+
+    for j in range(n):
+        for k in range(r):
+            for kp in range(r):
+                cons2 += lam * equal_to(Vt[j, k, kp] - V[j, k] * V[j, kp], 0) 
+    model = froA - 2 * term2 + term3 + cons1 + cons2
 
     # 解く
     if proxy:
@@ -95,7 +91,7 @@ if __name__ == "__main__":
     A = U @ np.transpose(V)
     density = np.count_nonzero(A) / (m * n)
     print("A is {}-by-{} and has a density of {}.".format(m, n, density))
-    Uest, Vest = qbmf_formulation1(A, r, proxy=args.proxy)
+    Uest, Vest = qbmf_formulation2(A, r, proxy=args.proxy)
     Aest = Uest @ np.transpose(Vest)
     print(Aest)
     print()
